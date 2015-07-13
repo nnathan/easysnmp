@@ -856,7 +856,8 @@ static struct tree *__tag2oid(char *tag, char *iid, oid *oid_arr,
             /* code taken from get_node in snmp_client.c */
             for (op = newname + MAX_OID_LEN - 1; op >= newname; op--)
             {
-                *op = tp->subid;
+                /* typecasting because a sub-identifier is no larger than the size of an oid */
+                *op = (oid) tp->subid;
                 tp = tp->parent;
                 if (tp == NULL)
                 {
@@ -1119,8 +1120,7 @@ retry:
     switch (status)
     {
         case STAT_SUCCESS:
-            status = (*response)->errstat;
-            switch (status)
+            switch ((*response)->errstat)
             {
                 case SNMP_ERR_NOERROR:
                     break;
