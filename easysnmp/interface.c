@@ -72,7 +72,7 @@ static int __is_numeric_oid(char *oidstr);
 static int __is_leaf(struct tree *tp);
 static int __translate_appl_type(char *typestr);
 static int __translate_asn_type(int type);
-static int __snprint_value(char *buf, size_t buf_len,
+static size_t __snprint_value(char *buf, size_t buf_len,
                            netsnmp_variable_list *var,
                            struct tree *tp, int type, int flag);
 static int __sprint_num_objid(char *buf, oid *objid, int len);
@@ -333,11 +333,11 @@ static int __translate_asn_type(int type)
 #define USE_BASIC        (0)
 #define USE_ENUMS        (1)
 #define USE_SPRINT_VALUE (2)
-static int __snprint_value(char *buf, size_t buf_len,
+static size_t __snprint_value(char *buf, size_t buf_len,
                            netsnmp_variable_list *var,
                            struct tree *tp, int type, int flag)
 {
-    int len = 0;
+    size_t len = 0;
     u_char *ip;
     struct enum_list *ep;
 
