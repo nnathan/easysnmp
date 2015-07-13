@@ -24,6 +24,8 @@
 /* include bitarray data structure for v1 queries */
 #include "simple_bitarray.h"
 
+#define OID_CONVERSION_SPECIFIER "%" NETSNMP_PRIo "u"
+
 /*
  * In snmpv1 when using retry_nosuch we need to track the
  * index of each bad OID in the responses using a bitarray;
@@ -81,10 +83,10 @@ static int __get_type_str(int type, char *str, int log_error);
 static int __get_label_iid(char *name, char **last_label, char **iid,
                            int flag);
 static struct tree *__tag2oid(char *tag, char *iid, oid *oid_arr,
-                              int *oid_arr_len, int *type, int best_guess);
-static int __concat_oid_str(oid *doid_arr, int *doid_arr_len, char *soid_str);
-static int __add_var_val_str(netsnmp_pdu *pdu, oid *name, int name_length,
-                             char *val, int len, int type);
+                              size_t *oid_arr_len, int *type, int best_guess);
+static int __concat_oid_str(oid *doid_arr, size_t *doid_arr_len, char *soid_str);
+static int __add_var_val_str(netsnmp_pdu *pdu, oid *name, size_t name_length,
+                             char *val, size_t len, int type);
 
 static void py_log_msg(int log_level, char *printf_fmt, ...);
 
@@ -470,7 +472,7 @@ static int __sprint_num_objid(char *buf, oid *objid, size_t len)
     buf[0] = '\0';
     for (i = 0; i < len; i++)
     {
-        sprintf(buf, ".%lu", *objid++);
+        sprintf(buf, "." OID_CONVERSION_SPECIFIER, *objid++);
         buf += STRLEN(buf);
     }
     return SUCCESS;
@@ -489,7 +491,7 @@ static int __scan_num_objid(char *buf, oid *objid, size_t *len)
     {
         if (*buf++ == '.')
         {
-            sscanf(cp, "%lu", objid++);
+            sscanf(cp, OID_CONVERSION_SPECIFIER, objid++);
             /* *objid++ = atoi(cp); */
             (*len)++;
             cp = buf;
@@ -502,7 +504,7 @@ static int __scan_num_objid(char *buf, oid *objid, size_t *len)
             }
         }
     }
-    sscanf(cp, "%lu", objid++);
+    sscanf(cp, OID_CONVERSION_SPECIFIER, objid++);
     /* *objid++ = atoi(cp); */
     (*len)++;
     return SUCCESS;
@@ -594,7 +596,7 @@ static int __get_label_iid(char *name, char **last_label, char **iid,
 {
     char *lcp;
     char *icp;
-    int len = STRLEN(name);
+    size_t len = STRLEN(name);
     int found_label = 0;
 
     *last_label = *iid = NULL;
@@ -727,11 +729,12 @@ static int __get_label_iid(char *name, char **last_label, char **iid,
 /* Convert a tag (string) to an OID array              */
 /* Tag can be either a symbolic name, or an OID string */
 static struct tree *__tag2oid(char *tag, char *iid, oid *oid_arr,
-                              int *oid_arr_len, int *type, int best_guess)
+                              size_t *oid_arr_len, int *type, int best_guess)
 {
     struct tree *tp = NULL;
     struct tree *rtp = NULL;
-    oid newname[MAX_OID_LEN], *op;
+    oid newname[MAX_OID_LEN];
+    oid *op;
     size_t newname_len = 0;
 
     if (type)
@@ -886,7 +889,7 @@ done:
  *
  * returns : SUCCESS, FAILURE
  */
-static int __concat_oid_str(oid *doid_arr, int *doid_arr_len, char *soid_str)
+static int __concat_oid_str(oid *doid_arr, size_t *doid_arr_len, char *soid_str)
 {
     char *soid_buf;
     char *cp;
@@ -908,7 +911,7 @@ static int __concat_oid_str(oid *doid_arr, int *doid_arr_len, char *soid_str)
     cp = strtok_r(soid_buf, ".", &st);
     while (cp)
     {
-        sscanf(cp, "%lu", &(doid_arr[(*doid_arr_len)++]));
+        sscanf(cp, OID_CONVERSION_SPECIFIER, &(doid_arr[(*doid_arr_len)++]));
         /* doid_arr[(*doid_arr_len)++] = atoi(cp); */
         cp = strtok_r(NULL, ".", &st);
     }
@@ -917,8 +920,8 @@ static int __concat_oid_str(oid *doid_arr, int *doid_arr_len, char *soid_str)
 }
 
 /* add a varbind to PDU */
-static int __add_var_val_str(netsnmp_pdu *pdu, oid *name, int name_length,
-                             char *val, int len, int type)
+static int __add_var_val_str(netsnmp_pdu *pdu, oid *name, size_t name_length,
+                             char *val, size_t len, int type)
 {
     netsnmp_variable_list *vars;
     oid oidbuf[MAX_OID_LEN];
@@ -1836,7 +1839,7 @@ static PyObject *netsnmp_get(PyObject *self, PyObject *args)
     struct tree *tp;
     int len;
     oid *oid_arr;
-    int oid_arr_len = MAX_OID_LEN;
+    size_t oid_arr_len = MAX_OID_LEN;
     int type;
     char type_str[MAX_TYPE_NAME_LEN];
     int status;
@@ -2164,9 +2167,9 @@ static PyObject *netsnmp_getnext(PyObject *self, PyObject *args)
     netsnmp_pdu *pdu, *response;
     netsnmp_variable_list *vars;
     struct tree *tp;
-    int len;
+    size_t len;
     oid *oid_arr;
-    int oid_arr_len = MAX_OID_LEN;
+    size_t oid_arr_len = MAX_OID_LEN;
     int type;
     char type_str[MAX_TYPE_NAME_LEN];
     int status;
@@ -2502,9 +2505,9 @@ static PyObject *netsnmp_walk(PyObject *self, PyObject *args)
     netsnmp_pdu *newpdu;
     netsnmp_variable_list *vars, *oldvars;
     struct tree *tp;
-    int len;
+    size_t len;
     oid **oid_arr = NULL;
-    int *oid_arr_len = NULL;
+    size_t *oid_arr_len = NULL;
     oid **oid_arr_broken_check = NULL;
     int *oid_arr_broken_check_len = NULL;
     int type;
@@ -2905,9 +2908,9 @@ static PyObject *netsnmp_getbulk(PyObject *self, PyObject *args)
     netsnmp_pdu *pdu, *response;
     netsnmp_variable_list *vars;
     struct tree *tp;
-    int len;
+    size_t len;
     oid *oid_arr;
-    int oid_arr_len = MAX_OID_LEN;
+    size_t oid_arr_len = MAX_OID_LEN;
     int type;
     char type_str[MAX_TYPE_NAME_LEN];
     int status;
@@ -3182,7 +3185,7 @@ static PyObject *netsnmp_set(PyObject *self, PyObject *args)
 {
     PyObject *session;
     PyObject *varlist;
-    PyObject *varbind;
+    PyObject *varbind = NULL;
     PyObject *ret = NULL;
     netsnmp_session *ss;
     netsnmp_pdu *pdu, *response;
@@ -3191,9 +3194,9 @@ static PyObject *netsnmp_set(PyObject *self, PyObject *args)
     char *iid;
     char *val;
     char *type_str;
-    int len;
+    size_t len;
     oid *oid_arr;
-    int oid_arr_len = MAX_OID_LEN;
+    size_t oid_arr_len = MAX_OID_LEN;
     int type;
     u_char tmp_val_str[STR_BUF_SIZE];
     int use_enums;
@@ -3299,7 +3302,7 @@ static PyObject *netsnmp_set(PyObject *self, PyObject *args)
                         }
                     }
                 }
-                len = (int)tmplen;
+                len = (size_t) tmplen;
                 status = __add_var_val_str(pdu, oid_arr, oid_arr_len,
                                            (char *) tmp_val_str, len, type);
 
