@@ -75,7 +75,7 @@ static int __translate_asn_type(int type);
 static size_t __snprint_value(char *buf, size_t buf_len,
                            netsnmp_variable_list *var,
                            struct tree *tp, int type, int flag);
-static int __sprint_num_objid(char *buf, oid *objid, int len);
+static int __sprint_num_objid(char *buf, oid *objid, size_t len);
 static int __scan_num_objid(char *buf, oid *objid, size_t *len);
 static int __get_type_str(int type, char *str, int log_error);
 static int __get_label_iid(char *name, char **last_label, char **iid,
@@ -464,7 +464,7 @@ static size_t __snprint_value(char *buf, size_t buf_len,
     return len;
 }
 
-static int __sprint_num_objid(char *buf, oid *objid, int len)
+static int __sprint_num_objid(char *buf, oid *objid, size_t len)
 {
     int i;
     buf[0] = '\0';
