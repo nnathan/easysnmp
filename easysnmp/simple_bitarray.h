@@ -86,7 +86,7 @@ static inline void bitarray_zero(bitarray *bitarray)
 /*
  * Allocation functions
  */
-static inline bitarray *bitarray_alloc(unsigned long nbits)
+static inline bitarray *bitarray_alloc(bitarray_word nbits)
 {
         bitarray *ba = NULL;
 
@@ -101,7 +101,7 @@ static inline bitarray *bitarray_alloc(unsigned long nbits)
         return ba;
 }
 
-static inline bitarray *bitarray_calloc(unsigned long nbits)
+static inline bitarray *bitarray_calloc(bitarray_word nbits)
 {
         bitarray *ba = NULL;
 
