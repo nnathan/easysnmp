@@ -58,14 +58,14 @@
 #define FAIL_ON_NULL_IID (0x01)
 #define NO_FLAGS         (0x00)
 
-#define SAFE_FREE(x)                                                          \
-    do                                                                        \
-    {                                                                         \
-        if (x != NULL)                                                        \
-        {                                                                     \
-            free(x);                                                          \
-        }                                                                     \
-    }                                                                         \
+#define SAFE_FREE(x)   \
+    do                 \
+    {                  \
+        if (x != NULL) \
+        {              \
+            free(x);   \
+        }              \
+    }                  \
     while (0)
 
 typedef netsnmp_session SnmpSession;
