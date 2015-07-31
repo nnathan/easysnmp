@@ -84,6 +84,44 @@ static inline void bitarray_zero(bitarray *bitarray)
     memset(&bitarray[1], 0, n_bytes);
 }
 
+/* clear bits at position 0 to (nbits-1) */
+static inline void bitarray_clear_bits(bitarray *bitarray, size_t nbits)
+{
+    if (ba[0].limb >= nbits)
+    {
+        /* clear the entire bitarray */
+        bitarray_zero(bitarray);
+    }
+    else
+    {
+        size_t n_bytes;
+
+        /*
+         * cases:
+         *   - (1) nbits align on byte boundary
+         *   - (2) nbits does not align on byte boundary,
+         *         manually clear remaining bits
+         */
+        if (nbits % CHAR_BIT == 0)
+        {
+            n_bytes = nbits * CHAR_BIT;
+        }
+        else
+        {
+            size_t remaining_bits = nbits % CHAR_BIT;
+
+            /* clear bits in the partial byte first */
+            for (i = nbits; i > (nbits - remaining_bits); i--)
+            {
+                bitarray_clear_bit(bitarray, i - 1);
+            }
+        }
+
+        memset(&bitarray[1], 0, n_bytes);
+    }
+}
+
+
 /*
  * Allocation functions
  */
