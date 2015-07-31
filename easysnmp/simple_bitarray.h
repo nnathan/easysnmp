@@ -80,7 +80,8 @@ static inline int bitarray_test_bit(const bitarray *bitarray, bitarray_word n)
 
 static inline void bitarray_zero(bitarray *bitarray)
 {
-    memset(&bitarray[1], 0, bitarray_num_limbs(bitarray));
+    size_t n_bytes = sizeof(bitarray_word) * bitarray_num_limbs(bitarray);
+    memset(&bitarray[1], 0, n_bytes);
 }
 
 /*
