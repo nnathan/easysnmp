@@ -131,7 +131,7 @@ static inline bitarray *bitarray_alloc(unsigned long nbits)
 
         size_t n_limbs = 1 + BITARRAY_NUM_BITS_TO_LIMBS(nbits);
 
-	ba = malloc(sizeof(bitarray) * n_limbs);
+        ba = malloc(sizeof(bitarray) * n_limbs);
         if (ba)
         {
             ba[0].limb = nbits;
@@ -146,13 +146,13 @@ static inline bitarray *bitarray_calloc(unsigned long nbits)
 
         size_t n_limbs = 1 + BITARRAY_NUM_BITS_TO_LIMBS(nbits);
 
-	ba = calloc(sizeof(bitarray), n_limbs);
+        ba = calloc(sizeof(bitarray), n_limbs);
         if (ba)
         {
             ba[0].limb = nbits;
         }
 
-	return ba;
+        return ba;
 }
 
 static inline void bitarray_free(bitarray *bitarray)
@@ -163,13 +163,24 @@ static inline void bitarray_free(bitarray *bitarray)
     }
 }
 
-static inline void bitarray_buf_init(void *buf, size_t buf_size)
+/*
+ * take in a raw buffer and corresponding size and return a pointer to
+ * a newly initialised bitarray struct.
+ *
+ * e.g.
+ *     unsigned char p[1024]; // bitarray will be slightly <8192 bits.
+ *     bitarray *ba = bitarray_buf_init(p, sizeof(p));
+ */
+static inline bitarray *bitarray_buf_init(void *buf, size_t buf_size)
 {
-        bitarray *ba = buf;
+    bitarray *ba = buf;
+    size_t nbits = (buf_size - sizeof(bitarray_word)) * CHAR_BIT;
 
-        size_t nbits = (buf_size - sizeof(bitarray_word)) * CHAR_BIT;
+    ba[0].limb = nbits;
 
-        ba[0].limb = nbits;
+    bitarray_zero(ba);
+
+    return (ba);
 }
 
 static inline void bitarray_print_base16(bitarray *bitarray)
