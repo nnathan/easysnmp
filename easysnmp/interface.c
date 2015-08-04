@@ -1,5 +1,26 @@
 #include <Python.h>
 
+/*
+ * Old versions of Python use CObject API instead of Capsules.
+ * Both are similar, so we just use a bit of preprocessor magic
+ * to provide backwards compatibility.
+ */
+#if (                                    \
+      ((PY_VERSION_HEX <  0x02070000) || \
+       (PY_VERSION_HEX >= 0x03000000) && \
+       (PY_VERSION_HEX <  0x03010000))   \
+    )
+
+#define USE_DEPRECATED_COBJECT_API
+
+#define PyCapsule_New(pointer, name, destructor)     \
+    (PyCObject_FromVoidPtr(pointer, destructor))
+
+#define PyCapsule_GetPointer(capsule, name) \
+    (PyCObject_AsVoidPtr(capsule))
+
+#endif /* PY_VERSION_HEX */
+
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/snmpv3_api.h>
@@ -20,9 +41,6 @@
 #ifdef HAVE_REGEX_H
 #include <regex.h>
 #endif
-
-/* Add support for (restricted) Capsules for Python <2.7 */
-#include "capsulethunk.h"
 
 /* include bitarray data structure for v1 queries */
 #include "simple_bitarray.h"
@@ -101,7 +119,13 @@ struct session_capsule_ctx
 
 static PyObject *create_session_capsule(SnmpSession *ss);
 static void *get_session_handle_from_capsule(PyObject *session_capsule);
+
+#ifdef USE_DEPRECATED_COBJECT_API
+static void delete_session_capsule(void *session_ptr);
+#else
 static void delete_session_capsule(PyObject *session_capsule);
+#endif
+
 static int __is_numeric_oid(char *oidstr);
 static int __is_leaf(struct tree *tp);
 static int __translate_appl_type(char *typestr);
@@ -1523,6 +1547,19 @@ static void *get_session_handle_from_capsule(PyObject *session_capsule)
     return PyCapsule_GetPointer(session_capsule, NULL);
 }
 
+#ifdef USE_DEPRECATED_COBJECT_API
+/* The CObject API calls destructor with stored pointer */
+static void delete_session_capsule(void *session_ptr)
+{
+    struct session_capsule_ctx *ctx = session_ptr;
+
+    if (ctx)
+    {
+        snmp_sess_close(ctx->handle);
+        free(ctx);
+    }
+}
+#else
 /* Automatically called when Python reclaims session_capsule object. */
 static void delete_session_capsule(PyObject *session_capsule)
 {
@@ -1535,7 +1572,7 @@ static void delete_session_capsule(PyObject *session_capsule)
         free(ctx);
     }
 }
-
+#endif /* USE_DEPRECATED_COBJECT_API */
 
 static PyObject *netsnmp_create_session(PyObject *self, PyObject *args)
 {
