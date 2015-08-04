@@ -87,7 +87,7 @@ static inline void bitarray_zero(bitarray *bitarray)
 /* clear bits at position 0 to (nbits-1) */
 static inline void bitarray_clear_bits(bitarray *bitarray, size_t nbits)
 {
-    if (ba[0].limb >= nbits)
+    if (bitarray[0].limb >= nbits)
     {
         /* clear the entire bitarray */
         bitarray_zero(bitarray);
@@ -109,6 +109,7 @@ static inline void bitarray_clear_bits(bitarray *bitarray, size_t nbits)
         else
         {
             size_t remaining_bits = nbits % CHAR_BIT;
+            size_t i;
 
             /* clear bits in the partial byte first */
             for (i = nbits; i > (nbits - remaining_bits); i--)
@@ -174,11 +175,23 @@ static inline void bitarray_free(bitarray *bitarray)
 static inline bitarray *bitarray_buf_init(void *buf, size_t buf_size)
 {
     bitarray *ba = buf;
-    size_t nbits = (buf_size - sizeof(bitarray_word)) * CHAR_BIT;
 
-    ba[0].limb = nbits;
+    /* clamp to the number of limbs truncating excess bytes */
+    size_t nlimbs = buf_size / sizeof(bitarray_word);
 
-    bitarray_zero(ba);
+    /* reserve a limb for storing number of bits */
+    size_t nbits = (nlimbs - 1) * sizeof(bitarray_word) * CHAR_BIT;
+
+    if (nlimbs < 1)
+    {
+        return NULL;
+    }
+
+    if (ba)
+    {
+        ba[0].limb = nbits;
+        bitarray_zero(ba);
+    }
 
     return (ba);
 }
