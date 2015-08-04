@@ -21,6 +21,9 @@
 #include <regex.h>
 #endif
 
+/* Add support for (restricted) Capsules for Python <2.7 */
+#include "capsulethunk.h"
+
 /* include bitarray data structure for v1 queries */
 #include "simple_bitarray.h"
 
@@ -69,6 +72,35 @@
     while (0)
 
 typedef netsnmp_session SnmpSession;
+
+/*
+ * This structure is attached to the easysnmp.Session
+ * object as a Python Capsule (or CObject).
+ *
+ * This allows a one time allocation of large buffers
+ * without resorting to (unnecessary) allocation on the
+ * stack, but also remains thread safe; as long as only
+ * one Session object is restricted to each thread.
+ *
+ * This is allocated in create_session_capsule()
+ * and later (automatically via garbage collection) destroyed
+ * delete_session_capsule().
+ */
+struct session_capsule_ctx
+{
+    void *handle;
+
+    /* buf is used for storing values and OID names */
+    u_char buf[MAX_VALUE_SIZE];
+    u_char err_str[STR_BUF_SIZE];
+
+    /* we need a buffer to track invalid OIDs (worst case) */
+    unsigned char invalid_oids_buf[MAX_INVALID_OIDS / CHAR_BIT];
+    bitarray *invalid_oids;
+};
+
+static PyObject *create_session_capsule(SnmpSession *ss);
+static void delete_session_capsule(PyObject *session_capsule);
 static int __is_numeric_oid(char *oidstr);
 static int __is_leaf(struct tree *tp);
 static int __translate_appl_type(char *typestr);
@@ -1410,6 +1442,86 @@ static void __py_netsnmp_update_session_errors(PyObject *session,
     Py_DECREF(tmp_for_conversion);
 }
 
+/*
+ * Returns a new reference to a python capsule object containing
+ * a newly allocated session_capsule_ctx.
+ *
+ * This function will raise an exception on failure.
+ */
+static PyObject *create_session_capsule(SnmpSession *session)
+{
+    void *handle = NULL;
+    struct session_capsule_ctx *ctx = NULL;
+    PyObject *capsule = NULL;
+
+    /* create a long lived handle from throwaway session object */
+    if (!(handle = snmp_sess_open(session)))
+    {
+        PyErr_SetString(EasySNMPConnectionError,
+                        "couldn't create SNMP handle");
+        goto done;
+    }
+
+    if (!(ctx = malloc(sizeof *ctx)))
+    {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "could not malloc() session_capsule_ctx");
+        goto done;
+    }
+
+    /*
+     * Create a capsule containing the ctx pointer with an "anonymous" name,
+     * which is automatically destroyed by delete_session_capsule() when
+     * no more references to the object are held.
+     */
+    if (!(capsule = PyCapsule_New(ctx, NULL, delete_session_capsule)))
+    {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "failed to create Python Capsule object");
+        goto done;
+    }
+
+    /* init session context variables */
+    ctx->handle = handle;
+    ctx->invalid_oids = (bitarray *) ctx->invalid_oids_buf;
+    bitarray_buf_init(ctx->invalid_oids, sizeof(ctx->invalid_oids_buf));
+
+    return (capsule);
+
+done:
+
+    if (handle)
+    {
+        snmp_sess_close(handle);
+    }
+
+    if (ctx)
+    {
+        free(ctx);
+    }
+
+    if (capsule)
+    {
+        Py_XDECREF(capsule);
+    }
+
+    return NULL;
+}
+
+/* Automatically called when Python reclaims session_capsule object. */
+static void delete_session_capsule(PyObject *session_capsule)
+{
+    /* PyCapsule_GetPointer will raise an exception if it fails. */
+    struct session_capsule_ctx *ctx = PyCapsule_GetPointer(session_capsule, NULL);
+
+    if (ctx)
+    {
+        snmp_sess_close(ctx->handle);
+        free(ctx);
+    }
+}
+
+
 static PyObject *netsnmp_create_session(PyObject *self, PyObject *args)
 {
     int version;
@@ -1419,13 +1531,11 @@ static PyObject *netsnmp_create_session(PyObject *self, PyObject *args)
     int retries;
     int timeout;
     SnmpSession session = {0};
-    SnmpSession *ss = NULL;
-    int error = 0;
 
     if (!PyArg_ParseTuple(args, "issiii", &version, &community, &peer, &lport,
                           &retries, &timeout))
     {
-        return NULL;
+        goto done;
     }
 
     snmp_sess_init(&session);
@@ -1451,8 +1561,7 @@ static PyObject *netsnmp_create_session(PyObject *self, PyObject *args)
     {
         PyErr_Format(PyExc_ValueError, "unsupported SNMP version (%d)",
                      version);
-        error = 1;
-        goto end;
+        goto done;
     }
 
     session.community_len = STRLEN((char *)community);
@@ -1463,24 +1572,11 @@ static PyObject *netsnmp_create_session(PyObject *self, PyObject *args)
     session.timeout = timeout; /* 1000000L */
     session.authenticator = NULL;
 
-    ss = snmp_sess_open(&session);
+    return create_session_capsule(&session);
 
-    if (ss == NULL)
-    {
-        PyErr_SetString(EasySNMPConnectionError, "couldn't open SNMP session");
-        error = 1;
-    }
+done:
 
-end:
-
-    if (error)
-    {
-        return NULL;
-    }
-    else
-    {
-        return PyLong_FromVoidPtr((void *)ss);
-    }
+    return NULL;
 }
 
 static PyObject *netsnmp_create_session_v3(PyObject *self, PyObject *args)
@@ -1502,8 +1598,6 @@ static PyObject *netsnmp_create_session_v3(PyObject *self, PyObject *args)
     int eng_boots;
     int eng_time;
     SnmpSession session = {0};
-    SnmpSession *ss = NULL;
-    int error = 0;
 
     if (!PyArg_ParseTuple(args, "isiiisisssssssii", &version,
                           &peer, &lport, &retries, &timeout,
@@ -1526,8 +1620,7 @@ static PyObject *netsnmp_create_session_v3(PyObject *self, PyObject *args)
     {
         PyErr_Format(PyExc_ValueError, "unsupported SNMP version (%d)",
                      version);
-        error = 1;
-        goto end;
+        goto done;
     }
 
     session.peername = peer;
@@ -1576,8 +1669,7 @@ static PyObject *netsnmp_create_session_v3(PyObject *self, PyObject *args)
     {
         PyErr_Format(PyExc_ValueError,
                      "unsupported authentication protocol (%s)", auth_proto);
-        error = 1;
-        goto end;
+        goto done;
     }
     if (session.securityLevel >= SNMP_SEC_LEVEL_AUTHNOPRIV)
     {
@@ -1593,8 +1685,7 @@ static PyObject *netsnmp_create_session_v3(PyObject *self, PyObject *args)
                 PyErr_SetString(EasySNMPConnectionError,
                                 "error generating Ku from authentication "
                                 "password");
-                error = 1;
-                goto end;
+                goto done;
             }
         }
     }
@@ -1625,8 +1716,7 @@ static PyObject *netsnmp_create_session_v3(PyObject *self, PyObject *args)
     {
         PyErr_Format(PyExc_ValueError,
                      "unsupported privacy protocol (%s)", priv_proto);
-        error = 1;
-        goto end;
+        goto done;
     }
 
     if (session.securityLevel >= SNMP_SEC_LEVEL_AUTHPRIV)
@@ -1640,33 +1730,18 @@ static PyObject *netsnmp_create_session_v3(PyObject *self, PyObject *args)
         {
             PyErr_SetString(EasySNMPConnectionError,
                             "couldn't gen Ku from priv pass phrase");
-            goto end;
+            goto done;
         }
     }
 
-    ss = snmp_sess_open(&session);
+    return create_session_capsule(&session);
 
-    if (ss == NULL)
-    {
-        PyErr_Format(EasySNMPConnectionError,
-                     "couldn't open SNMP session (%s)",
-                     snmp_api_errstring(snmp_errno));
-        error = 1;
-    }
+done:
 
-end:
+    SAFE_FREE(session.securityEngineID);
+    SAFE_FREE(session.contextEngineID);
 
-    free(session.securityEngineID);
-    free(session.contextEngineID);
-
-    if (error)
-    {
-        return NULL;
-    }
-    else
-    {
-        return PyLong_FromVoidPtr((void *)ss);
-    }
+    return NULL;
 }
 
 static PyObject *netsnmp_create_session_tunneled(PyObject *self,
@@ -1686,8 +1761,6 @@ static PyObject *netsnmp_create_session_tunneled(PyObject *self,
     char *their_hostname;
     char *trust_cert;
     SnmpSession session = {0};
-    SnmpSession *ss = NULL;
-    int error = 0;
 
     if (!PyArg_ParseTuple(args, "isiiisissssss", &version,
                           &peer, &lport, &retries, &timeout,
@@ -1696,7 +1769,7 @@ static PyObject *netsnmp_create_session_tunneled(PyObject *self,
                           &our_identity, &their_identity,
                           &their_hostname, &trust_cert))
     {
-        return NULL;
+        goto done;
     }
 
     if (version != 3)
@@ -1704,7 +1777,7 @@ static PyObject *netsnmp_create_session_tunneled(PyObject *self,
         PyErr_SetString(PyExc_ValueError,
                         "you must use SNMP version 3 as it's the only "
                         "version that supports tunneling");
-        return NULL;
+        goto done;
     }
 
     snmp_sess_init(&session);
@@ -1729,7 +1802,7 @@ static PyObject *netsnmp_create_session_tunneled(PyObject *self,
         {
             py_log_msg(ERROR, "failed to initialize the transport "
                               "configuration container");
-            return NULL;
+            goto done;
         }
 
         session.transport_configuration->compare =
@@ -1756,41 +1829,11 @@ static PyObject *netsnmp_create_session_tunneled(PyObject *self,
                          netsnmp_transport_create_config("trust_cert",
                                                          trust_cert));
 
-    ss = snmp_sess_open(&session);
+    return create_session_capsule(&session);
 
-    if (!ss)
-    {
-        return NULL;
-    }
+done:
 
-    /*
-     * Note: on a 64-bit system the statement below discards the upper 32
-     * bits of "ss", which is most likely a bug.
-     */
-    if (error)
-    {
-        return NULL;
-    }
-    else
-    {
-        return Py_BuildValue("i", (int)(uintptr_t)ss);
-    }
-}
-
-static PyObject *netsnmp_delete_session(PyObject *self, PyObject *args)
-{
-    PyObject *session;
-    SnmpSession *ss = NULL;
-
-    if (!PyArg_ParseTuple(args, "O", &session))
-    {
-        return NULL;
-    }
-
-    ss = (SnmpSession *)py_netsnmp_attr_void_ptr(session, "sess_ptr");
-
-    snmp_sess_close(ss);
-    return (Py_BuildValue(""));
+    return NULL;
 }
 
 static PyObject *netsnmp_get(PyObject *self, PyObject *args)
@@ -3466,12 +3509,6 @@ static PyMethodDef interface_methods[] =
             netsnmp_create_session_tunneled,
             METH_VARARGS,
             "create a tunneled netsnmp session over tls, dtls or ssh."
-        },
-        {
-            "delete_session",
-            netsnmp_delete_session,
-            METH_VARARGS,
-            "create a netsnmp session."
         },
         {
             "get",
