@@ -46,6 +46,8 @@
 #define TYPE_UNKNOWN      (0)
 #define MAX_TYPE_NAME_LEN (32)
 #define STR_BUF_SIZE      ((MAX_TYPE_NAME_LEN) * (MAX_OID_LEN))
+#define MAX_VALUE_SIZE    (65536)
+#define MAX_INVALID_OIDS  (MAX_VALUE_SIZE / MIN_OID_LEN)
 #define ENG_ID_BUF_SIZE   (32)
 
 #define NO_RETRY_NOSUCH (0)
