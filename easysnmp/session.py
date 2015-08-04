@@ -472,7 +472,3 @@ class Session(object):
 
         # Return a list of variables
         return list(varlist)
-
-    def __del__(self):
-        """Deletes the session and frees up memory"""
-        return interface.delete_session(self)

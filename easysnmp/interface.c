@@ -100,6 +100,7 @@ struct session_capsule_ctx
 };
 
 static PyObject *create_session_capsule(SnmpSession *ss);
+static void *get_session_handle_from_capsule(PyObject *session_capsule);
 static void delete_session_capsule(PyObject *session_capsule);
 static int __is_numeric_oid(char *oidstr);
 static int __is_leaf(struct tree *tp);
@@ -1508,6 +1509,20 @@ done:
     return NULL;
 }
 
+static void *get_session_handle_from_capsule(PyObject *session_capsule)
+{
+    if (!session_capsule)
+    {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "NULL arg encountered in get_session_handle_from_capsule");
+
+        return NULL;
+    }
+
+    /* raises exception on failure. */
+    return PyCapsule_GetPointer(session_capsule, NULL);
+}
+
 /* Automatically called when Python reclaims session_capsule object. */
 static void delete_session_capsule(PyObject *session_capsule)
 {
@@ -1843,6 +1858,7 @@ static PyObject *netsnmp_get(PyObject *self, PyObject *args)
     PyObject *varbind;
     int varlist_len = 0;
     int varlist_ind;
+    struct session_capsule_ctx *session_ctx = NULL;
     netsnmp_session *ss;
     netsnmp_pdu *pdu, *response;
     netsnmp_variable_list *vars;
@@ -1885,7 +1901,14 @@ static PyObject *netsnmp_get(PyObject *self, PyObject *args)
             goto done;
         }
 
-        ss = (SnmpSession *)py_netsnmp_attr_void_ptr(session, "sess_ptr");
+        session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+
+        if (!session_ctx)
+        {
+            goto done;
+        }
+
+        ss = session_ctx->handle;
 
         snmp_version = py_netsnmp_attr_long(session, "version");
 
@@ -2174,6 +2197,7 @@ static PyObject *netsnmp_getnext(PyObject *self, PyObject *args)
     PyObject *varbind;
     int varlist_len = 0;
     int varlist_ind;
+    struct session_capsule_ctx *session_ctx = NULL;
     netsnmp_session *ss;
     netsnmp_pdu *pdu, *response;
     netsnmp_variable_list *vars;
@@ -2216,7 +2240,14 @@ static PyObject *netsnmp_getnext(PyObject *self, PyObject *args)
             goto done;
         }
 
-        ss = (SnmpSession *)py_netsnmp_attr_void_ptr(session, "sess_ptr");
+        session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+
+        if (!session_ctx)
+        {
+            goto done;
+        }
+
+        ss = session_ctx->handle;
 
         snmp_version = py_netsnmp_attr_long(session, "version");
 
@@ -2512,6 +2543,7 @@ static PyObject *netsnmp_walk(PyObject *self, PyObject *args)
     PyObject *varbinds  = NULL;
     int varlist_len = 0;
     int varlist_ind;
+    struct session_capsule_ctx *session_ctx = NULL;
     netsnmp_session *ss;
     netsnmp_pdu *pdu, *response;
     netsnmp_pdu *newpdu;
@@ -2561,7 +2593,15 @@ static PyObject *netsnmp_walk(PyObject *self, PyObject *args)
         {
             goto done;
         }
-        ss = (SnmpSession *)py_netsnmp_attr_void_ptr(session, "sess_ptr");
+
+        session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+
+        if (!session_ctx)
+        {
+            goto done;
+        }
+
+        ss = session_ctx->handle;
 
         if (py_netsnmp_attr_string(session, "error_string", &tmpstr, &tmplen) < 0)
         {
@@ -2917,6 +2957,7 @@ static PyObject *netsnmp_getbulk(PyObject *self, PyObject *args)
     PyObject *varbind;
     PyObject *varbinds_iter;
     int varbind_ind;
+    struct session_capsule_ctx *session_ctx = NULL;
     netsnmp_session *ss;
     netsnmp_pdu *pdu, *response;
     netsnmp_variable_list *vars;
@@ -2959,7 +3000,14 @@ static PyObject *netsnmp_getbulk(PyObject *self, PyObject *args)
         if (varlist &&
             (varbinds = PyObject_GetAttrString(varlist, "varbinds")))
         {
-            ss = (SnmpSession *)py_netsnmp_attr_void_ptr(session, "sess_ptr");
+            session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+
+            if (!session_ctx)
+            {
+                goto done;
+            }
+
+            ss = session_ctx->handle;
 
             if (py_netsnmp_attr_string(session, "error_string", &tmpstr, &tmplen) < 0)
             {
@@ -3201,6 +3249,7 @@ static PyObject *netsnmp_set(PyObject *self, PyObject *args)
     PyObject *varlist;
     PyObject *varbind;
     PyObject *ret = NULL;
+    struct session_capsule_ctx *session_ctx = NULL;
     netsnmp_session *ss;
     netsnmp_pdu *pdu, *response;
     struct tree *tp;
@@ -3233,7 +3282,14 @@ static PyObject *netsnmp_set(PyObject *self, PyObject *args)
             goto done;
         }
 
-        ss = (SnmpSession *)py_netsnmp_attr_void_ptr(session, "sess_ptr");
+        session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+
+        if (!session_ctx)
+        {
+            goto done;
+        }
+
+        ss = session_ctx->handle;
 
         /* PyObject_SetAttrString(); */
         if (py_netsnmp_attr_string(session, "error_string", &tmpstr, &tmplen) < 0)
