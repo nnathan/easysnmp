@@ -69,7 +69,6 @@
     while (0)
 
 typedef netsnmp_session SnmpSession;
-typedef struct tree SnmpMibNode;
 static int __is_numeric_oid(char *oidstr);
 static int __is_leaf(struct tree *tp);
 static int __translate_appl_type(char *typestr);
