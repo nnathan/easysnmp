@@ -106,7 +106,11 @@ typedef netsnmp_session SnmpSession;
  */
 struct session_capsule_ctx
 {
-    void *handle;
+    /*
+     * Technically this should be a (void *), but this probably
+     * won't ever change in Net-SNMP.
+     */
+    netsnmp_session *handle;
 
     /* buf is used for storing values and OID names */
     u_char buf[MAX_VALUE_SIZE];
