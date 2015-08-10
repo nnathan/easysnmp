@@ -1549,7 +1549,7 @@ static void *get_session_handle_from_capsule(PyObject *session_capsule)
     if (!session_capsule)
     {
         PyErr_SetString(PyExc_RuntimeError,
-                        "NULL arg encountered in get_session_handle_from_capsule");
+                        "NULL arg calling get_session_handle_from_capsule");
 
         return NULL;
     }
@@ -1901,7 +1901,8 @@ done:
 
 static PyObject *netsnmp_get(PyObject *self, PyObject *args)
 {
-    PyObject *session;
+    PyObject *session = NULL;
+    PyObject *sess_ptr = NULL;
     PyObject *varlist;
     PyObject *varbind;
     int varlist_len = 0;
@@ -1944,12 +1945,14 @@ static PyObject *netsnmp_get(PyObject *self, PyObject *args)
 
     if (oid_arr && args)
     {
+
         if (!PyArg_ParseTuple(args, "OO", &session, &varlist))
         {
             goto done;
         }
 
-        session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+        sess_ptr = PyObject_GetAttrString(session, "sess_ptr");
+        session_ctx = get_session_handle_from_capsule(sess_ptr);
 
         if (!session_ctx)
         {
@@ -2240,7 +2243,8 @@ done:
 
 static PyObject *netsnmp_getnext(PyObject *self, PyObject *args)
 {
-    PyObject *session;
+    PyObject *session = NULL;
+    PyObject *sess_ptr = NULL;
     PyObject *varlist;
     PyObject *varbind;
     int varlist_len = 0;
@@ -2288,7 +2292,8 @@ static PyObject *netsnmp_getnext(PyObject *self, PyObject *args)
             goto done;
         }
 
-        session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+        sess_ptr = PyObject_GetAttrString(session, "sess_ptr");
+        session_ctx = get_session_handle_from_capsule(sess_ptr);
 
         if (!session_ctx)
         {
@@ -2584,7 +2589,8 @@ done:
 
 static PyObject *netsnmp_walk(PyObject *self, PyObject *args)
 {
-    PyObject *session;
+    PyObject *session = NULL;
+    PyObject *sess_ptr = NULL;
     PyObject *varlist;
     PyObject *varlist_iter;
     PyObject *varbind;
@@ -2642,7 +2648,8 @@ static PyObject *netsnmp_walk(PyObject *self, PyObject *args)
             goto done;
         }
 
-        session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+        sess_ptr = PyObject_GetAttrString(session, "sess_ptr");
+        session_ctx = get_session_handle_from_capsule(sess_ptr);
 
         if (!session_ctx)
         {
@@ -2999,7 +3006,8 @@ static PyObject *netsnmp_getbulk(PyObject *self, PyObject *args)
 {
     int nonrepeaters;
     int maxrepetitions;
-    PyObject *session;
+    PyObject *session = NULL;
+    PyObject *sess_ptr = NULL;
     PyObject *varlist;
     PyObject *varbinds;
     PyObject *varbind;
@@ -3048,7 +3056,8 @@ static PyObject *netsnmp_getbulk(PyObject *self, PyObject *args)
         if (varlist &&
             (varbinds = PyObject_GetAttrString(varlist, "varbinds")))
         {
-            session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+            sess_ptr = PyObject_GetAttrString(session, "sess_ptr");
+            session_ctx = get_session_handle_from_capsule(sess_ptr);
 
             if (!session_ctx)
             {
@@ -3293,7 +3302,8 @@ done:
 
 static PyObject *netsnmp_set(PyObject *self, PyObject *args)
 {
-    PyObject *session;
+    PyObject *session = NULL;
+    PyObject *sess_ptr = NULL;
     PyObject *varlist;
     PyObject *varbind;
     PyObject *ret = NULL;
@@ -3330,7 +3340,8 @@ static PyObject *netsnmp_set(PyObject *self, PyObject *args)
             goto done;
         }
 
-        session_ctx = get_session_handle_from_capsule(PyObject_GetAttrString(session, "sess_ptr"));
+        sess_ptr = PyObject_GetAttrString(session, "sess_ptr");
+        session_ctx = get_session_handle_from_capsule(sess_ptr);
 
         if (!session_ctx)
         {
