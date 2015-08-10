@@ -112,11 +112,18 @@ struct session_capsule_ctx
      */
     netsnmp_session *handle;
 
-    /* buf is used for storing values and OID names */
+    /* buf is reusable and stores OID values and names */
     u_char buf[MAX_VALUE_SIZE];
+
+    /* err_str is used to fetch the error message from net-snmp libs */
     u_char err_str[STR_BUF_SIZE];
 
-    /* we need a buffer to track invalid OIDs (worst case) */
+    /*
+     * invalid_oids is a bitarray for maintaining invalid OIDS when performing
+     * SNMPv1 requests.
+     *
+     * Note: prior to use, the number of bits required should be cleared.
+     */
     unsigned char invalid_oids_buf[MAX_INVALID_OIDS / CHAR_BIT];
     bitarray *invalid_oids;
 };
