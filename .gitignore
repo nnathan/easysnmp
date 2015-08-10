@@ -23,5 +23,7 @@ dist/
 # Documentation builds
 docs/_build/
 
-# vim stuff
+# customizations & IDE settings
 .ropeproject
+.virtualenv
+.python-version
